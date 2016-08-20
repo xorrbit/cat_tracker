@@ -6,6 +6,7 @@
 char nmea[MAX_NMEA+1];
 char coords[MAX_COORDS];
 int i;
+unsigned char checksum;
 
 SoftwareSerial mySerial(10, 11); // RX, TX
 
@@ -35,27 +36,44 @@ void loop()
       {
         while (mySerial.available() < 1);
         nmea[i] = mySerial.read();
-      } while (nmea[i++] != '\n' && ((i + 2) < MAX_NMEA));
-      nmea[i-1] = '\0';
+      } while (nmea[i++] != '\n' && (i < MAX_NMEA));
+      
+      nmea[--i] = '\0';
       // nmea now contains the message (or the most we could grab of it)
-      Serial.print("Got message: ");
-      Serial.println(nmea);
       if (nmea[1] == 'G' &&
           nmea[2] == 'P' &&
           nmea[3] == 'R' &&
           nmea[4] == 'M' &&
           nmea[5] == 'C')
       {
-        Serial.println("Coordinates detected, parsing...");
-        parseCoords(nmea, coords);
-        Serial.print("Parsed coords:");
-        Serial.println(coords);
+        Serial.println(nmea);
+        // double check out checksum because why not
+        if (calcChecksum(nmea) == (unsigned char) strtoul(&nmea[i-3], 0, 16))
+        {
+          if(parseCoords(nmea, coords))
+          {
+            Serial.print("Parsed coords:");
+            Serial.println(coords);
+          }
+          else
+          {
+            Serial.println("GPS does not have a fix yet.");
+          }
+        }
+        else
+        {
+          Serial.println("Checksum failed!");
+          Serial.print("Calculated checksum:");
+          Serial.print(checksum);
+          Serial.print(", message checksum: ");
+          Serial.println(&nmea[i-3]);
+        }
       }
     }
   }
 }
 
-void parseCoords(char *nmea, char *coords)
+bool parseCoords(char *nmea, char *coords)
 {
   int i = 0;
   int j = 0;
@@ -64,6 +82,11 @@ void parseCoords(char *nmea, char *coords)
   // $GPRMC,time,active,latitude,N/S,longitude,W/E,speed,angle,date,mag,checksum
   while (nmea[i++] != ',');
   while (nmea[i++] != ',');
+  // if we don't have a fix, return false
+  if (nmea[i] != 'A')
+  {
+    return false;
+  }
   while (nmea[i++] != ',');
   // lat
   coords[j++] = '+'; // + or -
@@ -94,6 +117,21 @@ void parseCoords(char *nmea, char *coords)
     coords[latstart] = '-';
   coords[j++] = '\0';
   
-  return;  
+  return true;  
 }
 
+// it ends with *XX, a checksum
+// The checksum field consists of a '*' and two hex digits representing a
+// 8 bit exclusive OR of all characters between, but not including,
+// the '$' and '*'.
+unsigned char calcChecksum(char *nmea)
+{
+  int i = 1;
+  unsigned char sum = 0;
+  
+  sum = nmea[i++];
+  while (nmea[i] != '*')
+    sum = sum ^ nmea[i++];
+    
+  return sum;
+}
