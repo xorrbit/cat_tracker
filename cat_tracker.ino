@@ -39,6 +39,9 @@ char str[MAX_DATETIME];
 File dataFile;
 bool sd_working = false;
 char filename[MAX_FILENAME+1]; // 08202327.GPX aka MMDDHHMMSS.GPX
+double hdop = 99.9;
+double pdop = 99.9;
+double vdop = 99.9;
 
 SoftwareSerial mySerial(SOFTSERIAL_RX, SOFTSERIAL_TX); // RX, TX
 
@@ -102,14 +105,31 @@ void checkNMEA(char *nmea)
       // this parses out data if we have a fix
       if (parseGPRMC(nmea, &lat, &lon, datetime))
       {
-        logGPS(&lat, &lon, datetime); 
+        logGPS(&lat, &lon, datetime, &pdop, &hdop, &vdop); 
       }
+    }
+  }
+  else if (nmea[1] == 'G' &&
+           nmea[2] == 'P' &&
+           nmea[3] == 'G' &&
+           nmea[4] == 'S' &&
+           nmea[5] == 'A')
+  {
+    // double check checksum
+    if (calcChecksum(nmea) == (unsigned char) strtoul(&nmea[i-3], 0, 16))
+    {
+      // parse out pdop, hdop, and vdop
+      parseGPGSA(nmea, &pdop, &hdop, &vdop);
     }
   }
 }
 
-void logGPS(double *lat, double *lon, char *datetime)
+void logGPS(double *lat, double *lon, char *datetime, double *pdop, double *hdop, double *vdop)
 {
+  // if our degree of precision is redic high just skip logging
+  if (*pdop > 10.0)
+    return;
+
   if (STILL_STARTING)
   {
     // this fixes a weird bug
@@ -163,14 +183,66 @@ void logGPS(double *lat, double *lon, char *datetime)
   logPrint(str);
   logPrint("\"><time>");
   logPrint(datetime);
-  logPrintln("</time></trkpt>");
-
+  logPrint("</time><pdop>");
+  dtostrf(*pdop, 4, 2, str);
+  logPrint(str);
+  logPrint("</pdop><hdop>");
+  dtostrf(*hdop, 4, 2, str);
+  logPrint(str);
+  logPrint("</hdop><vdop>");
+  dtostrf(*vdop, 4, 2, str);
+  logPrint(str);
+  logPrintln("</vdop></trkpt>");
+  
   logPrintln("</trkseg></trk></gpx>");
 
   if (sd_working)
   {
     dataFile.flush();
   }
+}
+
+// parse out PDOP (position dilution of precision), HDOP (horizontal dilution of precision), and VDOP (vertical dilution of precision)
+void parseGPGSA(char *nmea, double *pdop, double *hdop, double *vdop)
+{
+  int i = 0;
+  int j = 0;
+  char dop[10];
+  
+  // $GPGSA,A,3,,,,,,16,18,,22,24,,,3.6,2.1,2.2*3C
+  for (j = 0; j < 15; j++)
+  {
+    while(nmea[i++] != ','); // skip first 15 fields
+  }
+
+  j = 0;
+  while(nmea[i] != ',' && nmea[i] != '*')
+  {
+    dop[j++] = nmea[i++];
+  }
+  dop[j] == '\0';
+
+  *pdop = strtod(dop, 0);
+
+  i++;
+  j = 0;
+  while(nmea[i] != ',' && nmea[i] != '*')
+  {
+    dop[j++] = nmea[i++];
+  }
+  dop[j] == '\0';
+
+  *hdop = strtod(dop, 0); 
+
+  i++;
+  j = 0;
+  while(nmea[i] != ',' && nmea[i] != '*')
+  {
+    dop[j++] = nmea[i++];
+  }
+  dop[j] == '\0';
+
+  *vdop = strtod(dop, 0);
 }
 
 bool parseGPRMC(char *nmea, double *lat, double *lon, char *datetime)
