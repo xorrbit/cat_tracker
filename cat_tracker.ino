@@ -1,5 +1,4 @@
-// have to add this to the end of the file to make it a valid gpx file ¯\_(ツ)_/¯
-// </trkseg></trk></gpx>
+// xorrbit/cat_tracker
 
 // GPS TX connects to SoftSerial RX (digital pin 9)
 // SoftSerial TX should be set to an unused pin
@@ -139,16 +138,24 @@ void logGPS(double *lat, double *lon, char *datetime)
   }
   else
   {
-    logPrint("<trkpt lat=\"");
-    dtostrf(*lat, 4, 6, str);
-    logPrint(str);
-    logPrint("\" lon=\"");
-    dtostrf(*lon, 4, 6, str);
-    logPrint(str);
-    logPrint("\"><time>");
-    logPrint(datetime);
-    logPrintln("</time></trkpt>");
+    // overwrite the footer :)
+    if (sd_working)
+    {
+      dataFile.seek(dataFile.position() - 23);
+    }
   }
+  
+  logPrint("<trkpt lat=\"");
+  dtostrf(*lat, 4, 6, str);
+  logPrint(str);
+  logPrint("\" lon=\"");
+  dtostrf(*lon, 4, 6, str);
+  logPrint(str);
+  logPrint("\"><time>");
+  logPrint(datetime);
+  logPrintln("</time></trkpt>");
+
+  logPrintln("</trkseg></trk></gpx>");
 
   if (sd_working)
   {
