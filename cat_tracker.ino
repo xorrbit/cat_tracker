@@ -1,15 +1,22 @@
 // xorrbit/cat_tracker
 
-// GPS TX connects to SoftSerial RX (digital pin 9)
+// on prototype
+// new gps wiring is
+// yellow = gnd
+// white = tx
+// red = rx (unused)
+// black = vcc (lol)
+
+// GPS TX connects to SoftSerial RX (D9, PB9, atmega328 pin 15)
 // SoftSerial TX should be set to an unused pin
 #define SOFTSERIAL_RX 9
 #define SOFTSERIAL_TX 8
 
 // * SD card attached to SPI bus as follows:
-// ** MOSI - pin 11
-// ** MISO - pin 12
-// ** CLK - pin 13
-// ** CS - pin 10
+// ** CS   - D10 (PB2, atmega328 pin 16)
+// ** MOSI - D11 (PB3, atmega328 pin 17)
+// ** MISO - D12 (PB4, atmega328 pin 18)
+// ** CLK  - D13 (PB5, atmega328 pin 19)
 #define SD_CHIP_SELECT 10
 
 #include <SPI.h>
@@ -105,6 +112,9 @@ void logGPS(double *lat, double *lon, char *datetime)
 {
   if (STILL_STARTING)
   {
+    // this fixes a weird bug
+    // if we don't read sd_working at least once here, the datetime doesn't get output the first time
+    if (sd_working) delay(1);
     // DDHHMMSS.GPX aka
     // 2016-08-20T23:27:14.00Z -> 20232714.gpx
     filename[0] = datetime[8];
