@@ -1,11 +1,26 @@
 // have to add this to the end of the file to make it a valid gpx file
 // </trkseg></trk></gpx>
 
+// GPS TX connects to SoftSerial RX (digital pin 9)
+// SoftSerial TX is unused
+#define SOFTSERIAL_RX 9
+#define SOFTSERIAL_TX 8
+
+// * SD card attached to SPI bus as follows:
+// ** MOSI - pin 11
+// ** MISO - pin 12
+// ** CLK - pin 13
+// ** CS - pin 10
+#define SD_CHIP_SELECT 10
+
+#include <SPI.h>
+#include <SD.h>
 #include <SoftwareSerial.h>
 #include <stdlib.h>
 
 #define MAX_NMEA 128
 #define MAX_DATETIME 23
+#define MAX_FILENAME 32
 
 bool STILL_STARTING = true;
 char nmea[MAX_NMEA+1];
@@ -15,8 +30,16 @@ char datetime[MAX_DATETIME+1];
 int i;
 unsigned char checksum;
 char str[MAX_DATETIME];
+File dataFile;
+bool sd_working = false;
+char filename[MAX_FILENAME+1]; // 2016-08-20T23:27:14.00Z.gpx
 
-SoftwareSerial mySerial(10, 11); // RX, TX
+SoftwareSerial mySerial(SOFTSERIAL_RX, SOFTSERIAL_TX); // RX, TX
+
+#define logPrint(__blah__) Serial.print(__blah__); if (sd_working) dataFile.print(__blah__)
+#define logPrintln(__blah__) Serial.println(__blah__); if (sd_working) dataFile.println(__blah__)
+
+
 
 void setup()
 {
@@ -26,9 +49,20 @@ void setup()
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
-  Serial.println("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>");
-  Serial.println("<gpx creator=\"cat_tracker by xorrbit\">");
-  Serial.print("<metadata><link href=\"https://github.com/xorrbit/cat_tracker\"><text>xorrbit/cat_tracker on GitHub</text></link><time>");
+  // see if the card is present and can be initialized:
+  if (!SD.begin(SD_CHIP_SELECT)) {
+    Serial.println("Card failed, or not present, only logging to serial port!");
+  }
+  else
+  {
+    dataFile = SD.open("log.gpx", FILE_WRITE);
+    if (dataFile)
+    {
+      sd_working = true;
+    }
+  }
+
+  // we wait for the first good GPS message to get the date and time for this header.
 
   mySerial.begin(9600);
 }
@@ -62,24 +96,46 @@ void loop()
         {
           if(parseGPRMC(nmea, &lat, &lon, datetime))
           {
+            
             if (STILL_STARTING)
             {
-              Serial.print(datetime);
-              Serial.println("</time></metadata>");
-              Serial.println("<trk><trkseg>");
+              // 2016-08-20T23:27:14.00Z -> 2016-08-20T23_27_14.gpx
+              //strncpy(filename, datetime, MAX_FILENAME);
+              //filename[13] = '_';
+              //filename[16] = '_';
+              //filename[20] = 'g';
+              ///filename[21] = 'p';
+              //filename[22] = 'x';
+              //filename[23] = '\0';
+
+              logPrintln("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>");
+              logPrintln("<gpx creator=\"cat_tracker by xorrbit\">");
+              logPrint("<metadata><link href=\"https://github.com/xorrbit/cat_tracker\"><text>xorrbit/cat_tracker on GitHub</text></link><time>");
+              logPrint(datetime);
+              logPrintln("</time></metadata>");
+              logPrintln("<trk><trkseg>");
+              if (sd_working) dataFile.flush();
+              
               STILL_STARTING = false;
             }
             else
             {
-              Serial.print("<trkpt lat=\"");
+              
+              
+              logPrint("<trkpt lat=\"");
               dtostrf(lat, 4, 6, str);
-              Serial.print(str);
-              Serial.print("\" lon=\"");
+              logPrint(str);
+              //logPrint(",");
+              logPrint("\" lon=\"");
               dtostrf(lon, 4, 6, str);
-              Serial.print(str);
-              Serial.print("\"><time>");
-              Serial.print(datetime);
-              Serial.println("</time></trkpt>");
+              logPrint(str);
+              //logPrint(",");
+              logPrint("\"><time>");
+              logPrint(datetime);
+              //logPrintln();
+              logPrintln("</time></trkpt>");
+              if (sd_working) dataFile.flush();
+              
             }
           }
         }
