@@ -1,5 +1,4 @@
 // xorrbit/cat_tracker
-// takes around 45mA, so with two AA cells it might last about 23 hours?
 
 // on prototype
 // new gps wiring is
@@ -24,7 +23,6 @@
 #include <SD.h>
 #include <SoftwareSerial.h>
 #include <stdlib.h>
-#include <avr/power.h>
 
 #define MAX_NMEA 128
 #define MAX_DATETIME 23
@@ -52,13 +50,6 @@ SoftwareSerial mySerial(SOFTSERIAL_RX, SOFTSERIAL_TX); // RX, TX
 
 void setup()
 {
-  power_adc_disable();
-  // timer0 is used
-  //power_timer0_disable();
-  power_timer1_disable();
-  power_timer2_disable();
-  power_twi_disable();
-  
   Serial.begin(9600);
   while (!Serial)
   {
